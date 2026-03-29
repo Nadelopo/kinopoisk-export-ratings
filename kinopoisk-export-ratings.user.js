@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoPoisk Ratings Exporter
 // @namespace    https://kinopoisk.ru
-// @version      1.0
+// @version      1.1
 // @description  Export your KinoPoisk ratings to JSON with one click
 // @match        https://www.kinopoisk.ru/user/*/votes/*
 // @grant        none
@@ -10,8 +10,30 @@
 ;(function () {
   "use strict"
 
+  function parseRatingsFromScripts(doc) {
+    const ratings = new Map()
+    const scripts = doc.querySelectorAll("script")
+    console.log(
+      `[KP Export] parseRatingsFromScripts: ${scripts.length} script tags`
+    )
+    for (const s of scripts) {
+      const matches = s.textContent.matchAll(
+        /ur_data\.push\(\{film:\s*(\d+),\s*rating:\s*'(\d+)'/g
+      )
+      for (const m of matches) {
+        ratings.set(parseInt(m[1], 10), parseInt(m[2], 10))
+      }
+    }
+    console.log(
+      `[KP Export] parseRatingsFromScripts: ${ratings.size} ratings found`
+    )
+    return ratings
+  }
+
   function extractVotesFromDoc(doc) {
     const items = doc.querySelectorAll(".profileFilmsList .item")
+    const ratings = parseRatingsFromScripts(doc)
+
     const result = []
 
     for (const item of items) {
@@ -23,10 +45,7 @@
       const kpIdMatch = href.match(/\/(film|series)\/(\d+)\//)
       const kpId = kpIdMatch ? parseInt(kpIdMatch[2], 10) : 0
       const titleEn = item.querySelector(".nameEng")?.textContent?.trim() ?? ""
-      const rating = parseInt(
-        item.querySelector(".vote")?.textContent?.trim() ?? "0",
-        10
-      )
+      const rating = ratings.get(kpId) ?? 0
 
       if (title && rating && kpId) {
         result.push({ kpId, title, titleEn, rating })
