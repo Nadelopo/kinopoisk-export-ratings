@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         KinoPoisk Ratings Exporter
 // @namespace    https://kinopoisk.ru
-// @version      1.1
+// @version      1.2
 // @description  Export your KinoPoisk ratings to JSON with one click
 // @match        https://www.kinopoisk.ru/user/*/votes/*
 // @grant        none
@@ -55,8 +55,8 @@
     return result
   }
 
-  function getTotalPages() {
-    const links = document.querySelectorAll('.navigator a[href*="page/"]')
+  function getTotalPages(doc) {
+    const links = doc.querySelectorAll('.navigator a[href*="page/"]')
     const nums = Array.from(links)
       .map((el) => {
         const m = el.getAttribute("href")?.match(/page\/(\d+)/)
@@ -85,22 +85,27 @@
     URL.revokeObjectURL(url)
   }
 
-  async function fetchPage(userId, pageNum) {
+  async function fetchDoc(userId, pageNum) {
     const url = `https://www.kinopoisk.ru/user/${userId}/votes/list/vs/vote/perpage/200/page/${pageNum}/#list`
     const res = await fetch(url, { credentials: "include" })
     if (!res.ok) throw new Error(`HTTP ${res.status} for page ${pageNum}`)
     const html = await res.text()
-    const doc = new DOMParser().parseFromString(html, "text/html")
-    const votes = extractVotesFromDoc(doc)
-    return votes
+    return new DOMParser().parseFromString(html, "text/html")
+  }
+
+  async function fetchPage(userId, pageNum) {
+    const doc = await fetchDoc(userId, pageNum)
+    return extractVotesFromDoc(doc)
   }
 
   async function exportAll(btn) {
     const userId = getUserId()
     if (!userId) return alert("Не удалось определить ID пользователя")
 
-    const totalPages = getTotalPages()
-    const allVotes = [...extractVotesFromDoc(document)]
+    btn.textContent = `Собираем...`
+    const firstDoc = await fetchDoc(userId, 1)
+    const totalPages = getTotalPages(firstDoc)
+    const allVotes = [...extractVotesFromDoc(firstDoc)]
     btn.textContent = `Собираем... 1/${totalPages}`
 
     for (let p = 2; p <= totalPages; p++) {
